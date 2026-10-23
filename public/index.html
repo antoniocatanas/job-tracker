@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Job Search Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c4a'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Sign-in -->
+  <main id="login" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <h1>Job Search Tracker</h1>
+      <p class="muted">Private board. Enter your password to continue.</p>
+      <label class="field">
+        <span>Password</span>
+        <input id="password" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p id="login-error" class="error" role="alert" hidden></p>
+      <button class="btn btn-primary" type="submit">Sign in</button>
+    </form>
+  </main>
+
+  <!-- App -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <span>Job Search Tracker</span>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Views">
+        <button role="tab" data-view="pipeline" aria-selected="true">Pipeline</button>
+        <button role="tab" data-view="ranked" aria-selected="false">Ranked</button>
+      </nav>
+      <div class="topbar-actions">
+        <button id="refresh" class="btn btn-ghost" title="Reload from Airtable">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="hide-sm">Refresh</span>
+        </button>
+        <button id="logout" class="btn btn-ghost">Sign out</button>
+      </div>
+    </header>
+
+    <section class="stats" id="stats" aria-label="Pipeline summary"></section>
+
+    <section class="filters" aria-label="Filters">
+      <label class="search">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="Search company or role" autocomplete="off">
+      </label>
+      <select id="f-segment" aria-label="Segment"><option value="">All segments</option></select>
+      <select id="f-location" aria-label="Location"><option value="">All locations</option></select>
+      <select id="f-status" aria-label="Status" class="ranked-only"><option value="">All statuses</option></select>
+      <label class="toggle"><input id="f-closed" type="checkbox"><span>Show closed</span></label>
+      <span id="count" class="muted count"></span>
+    </section>
+
+    <main id="board" class="board" aria-live="polite"></main>
+    <main id="table-wrap" class="table-wrap" hidden></main>
+  </div>
+
+  <!-- Job drawer -->
+  <div id="scrim" class="scrim" hidden></div>
+  <aside id="drawer" class="drawer" aria-hidden="true" aria-labelledby="d-company" role="dialog">
+    <div class="drawer-inner" id="drawer-body"></div>
+  </aside>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
