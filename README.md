@@ -4,6 +4,7 @@ A private web app on top of the **Job Search Tracker** Airtable base (`appfZkhr2
 
 - **Pipeline**: kanban by Status. Drag a card to another column to update it in Airtable.
 - **Ranked**: every active job sorted by Score, with sortable columns and filters.
+- **Generate CV & cover letter**: a tickbox in the job panel. Ticking it starts the "Draft CV & cover letter" Claude task, which writes both as Google Docs in the job's folder under Drive → Applications, sets the Drive folder link and marks the job Drafted. The app shows progress live and a Docs log tab with links.
 - **Job panel**: Brief, Job description, Interview prep (Assets) and editable Notes, plus Status, Application Status and Alive/Dead controls and links to the posting, Drive folder and meeting prep.
 
 No framework and no npm dependencies: static files in `public/`, serverless functions in `api/`.
@@ -44,6 +45,16 @@ git push -u origin main
 
 Every push to `main` redeploys automatically. If you change an environment variable, redeploy from the Vercel dashboard for it to take effect.
 
+## Turn on CV & cover letter generation
+
+1. Go to <https://claude.ai/code/routines> and open **Draft CV & cover letter (from job tracker)**.
+2. Open the menu next to its name → **Edit**. In the **Trigger** row click **+** → **API**.
+3. Copy the **Fire URL**, then click **Generate token** and copy the token (shown once).
+4. In Vercel → Project → **Settings → Environment Variables**, add `CLAUDE_TASK_FIRE_URL` (the Fire URL) and `CLAUDE_TASK_TOKEN` (the token).
+5. **Deployments** → ⋯ on the latest → **Redeploy**.
+
+The task only accepts a record ID from the app and only acts on jobs whose Docs status is "Requested", so a leaked token can't make it do anything else. To revoke access, delete or regenerate the token in the same Edit dialog.
+
 ## Run it locally
 
 Node 18+ is the only requirement.
@@ -69,6 +80,8 @@ api/logout.js       POST → clears the cookie
 api/session.js      GET → { signedIn }
 api/jobs/index.js   GET → all jobs (light fields) + select options
 api/jobs/[id].js    GET one job (all fields) · PATCH editable fields
+api/generate.js     POST { id } → Docs status "Requested" + starts the Claude task
+lib/claude.js       calls the Claude task's API trigger
 lib/airtable.js     Airtable REST client, validation, rate-limit retry
 lib/auth.js         password check + signed cookie
 lib/config.js       field IDs, select options, editable fields

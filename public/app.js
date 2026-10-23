@@ -7,8 +7,10 @@ const STATUS_COLOR = {
   Rejected: '#c4554a', Skipped: '#9aa29d', 'JD unavailable': '#d38a2c', '': '#9aa29d',
 };
 const DETAIL_TABS = [
-  ['brief', 'Brief'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'],
+  ['brief', 'Brief'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
 ];
+const DOCS_BUSY = ['Requested', 'Drafting'];
+const DOCS_LABEL = { Requested: 'Docs requested', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };
 
 const state = {
   jobs: [],
@@ -22,6 +24,7 @@ const state = {
   recordUrlPrefix: null,
   notesDraft: null, // { id, value } — survives re-renders until saved
   lastFocus: null,
+  generating: null, // job id while the generate request is in flight
 };
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -113,6 +116,7 @@ async function load() {
   state.recordUrlPrefix = data.recordUrlPrefix || null;
   fillFilterOptions();
   render();
+  schedulePoll();
 }
 
 async function start() {
@@ -229,6 +233,7 @@ function card(job) {
     shortOte(job.ote) ? h('span', { class: 'chip', title: job.ote }, shortOte(job.ote)) : null,
     job.appStatus ? h('span', { class: 'chip app' }, trimmed(job.appStatus)) : null,
     job.select ? h('span', { class: 'chip ' + (dead ? 'deadc' : 'alive') }, trimmed(job.select)) : null,
+    job.docsStatus ? h('span', { class: `chip docs docs-${job.docsStatus.toLowerCase()}` }, DOCS_LABEL[job.docsStatus] || job.docsStatus) : null,
   ));
   return el;
 }
@@ -519,8 +524,100 @@ function renderDrawer() {
       : h('p', { class: 'empty-note' }, 'Nothing here yet.'));
   }
 
-  $('#drawer-body').replaceChildren(head, controls, tabs, panel);
+  $('#drawer-body').replaceChildren(head, controls, docsPanel(job), tabs, panel);
 }
+
+// ---------------- CV & cover letter generation ----------------
+function docsPanel(job) {
+  const status = job.docsStatus || '';
+  const busy = DOCS_BUSY.includes(status);
+  const ready = status === 'Ready';
+  const box = h('input', { type: 'checkbox', id: 'gen-docs' });
+  box.checked = busy || ready;
+  box.disabled = busy || state.generating === job.id;
+  box.addEventListener('change', () => {
+    if (!box.checked) { box.checked = ready; return; } // unticking does nothing
+    generateDocs(job.id);
+  });
+
+  const folder = safeUrl(job.driveFolder);
+  let detail;
+  if (state.generating === job.id) detail = 'Starting Claude…';
+  else if (status === 'Requested') detail = 'Claude is starting. This usually takes 5–10 minutes; you can close this panel.';
+  else if (status === 'Drafting') detail = 'Claude is researching the company and writing both documents…';
+  else if (ready) detail = h('span', {}, 'Saved to Google Drive. ', folder ? h('a', { href: folder, target: '_blank', rel: 'noopener noreferrer' }, 'Open folder ↗') : null);
+  else if (status === 'Failed') detail = 'The last attempt failed (see Docs log). Tick to try again.';
+  else detail = 'Claude drafts a tailored CV and cover letter into this job\'s Drive folder.';
+
+  return h('div', { class: `d-docs${busy ? ' busy' : ''}${ready ? ' ready' : ''}${status === 'Failed' ? ' failed' : ''}` },
+    h('label', { class: 'd-docs-main', for: 'gen-docs' },
+      box,
+      h('span', { class: 'd-docs-title' }, 'Generate CV & cover letter'),
+      busy || state.generating === job.id ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : null),
+    h('div', { class: 'd-docs-detail' }, detail),
+    ready ? h('button', { class: 'btn btn-ghost d-docs-again', type: 'button', onclick: () => {
+      if (confirm('Draft a new version? The current documents are kept and the new ones are saved as v2, v3…')) generateDocs(job.id);
+    } }, 'Generate again') : null);
+}
+
+async function generateDocs(id) {
+  state.generating = id;
+  if (state.openId === id) renderDrawer();
+  try {
+    const { job: saved } = await api('/api/generate', { method: 'POST', body: JSON.stringify({ id }) });
+    mergeJob(saved);
+    toast('Claude is drafting your CV and cover letter');
+  } catch (ex) {
+    if (ex.message !== 'Signed out') toast(ex.message, true);
+    // Refresh this job so the panel shows the real state (e.g. Failed).
+    try { mergeJob((await api(`/api/jobs/${encodeURIComponent(id)}`)).job); } catch {}
+  } finally {
+    state.generating = null;
+    render();
+    if (state.openId === id) renderDrawer();
+    schedulePoll();
+  }
+}
+
+function mergeJob(saved) {
+  const job = state.jobs.find((j) => j.id === saved.id);
+  if (job) for (const k of Object.keys(job)) if (k in saved) job[k] = saved[k];
+  state.details.set(saved.id, saved);
+}
+
+// While any job is being drafted, re-check Airtable every 20 seconds.
+let pollTimer = null;
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  if (!state.jobs.some((j) => DOCS_BUSY.includes(j.docsStatus))) return;
+  pollTimer = setTimeout(poll, 20_000);
+}
+
+async function poll() {
+  if (document.hidden) return schedulePoll();
+  const before = new Map(state.jobs.map((j) => [j.id, j.docsStatus]));
+  try {
+    const data = await api('/api/jobs');
+    state.jobs = data.jobs;
+    for (const j of state.jobs) {
+      const was = before.get(j.id);
+      if (was !== j.docsStatus) {
+        state.details.delete(j.id); // refetch full record (Drive folder, Docs log)
+        if (j.docsStatus === 'Ready' && DOCS_BUSY.includes(was)) toast(`CV & cover letter ready: ${j.company}`);
+        if (j.docsStatus === 'Failed' && DOCS_BUSY.includes(was)) toast(`Drafting failed for ${j.company}. See Docs log.`, true);
+      }
+    }
+    render();
+    if (state.openId && !state.details.has(state.openId)) {
+      renderDrawer();
+      const { job } = await api(`/api/jobs/${encodeURIComponent(state.openId)}`);
+      state.details.set(job.id, job);
+      renderDrawer();
+    }
+  } catch {}
+  schedulePoll();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePoll(); });
 
 // ---------------- Controls ----------------
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {

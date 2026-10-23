@@ -186,6 +186,10 @@ select { padding-right: 28px; appearance: none; cursor: pointer;
 .score.hi { background: var(--good-soft); color: var(--good); }
 .score.mid { background: var(--warn-soft); color: var(--warn); }
 
+.chip.docs-requested, .chip.docs-drafting { background: var(--warn-soft); color: var(--warn); }
+.chip.docs-ready { background: var(--good-soft); color: var(--good); }
+.chip.docs-failed { background: var(--bad-soft); color: var(--bad); }
+
 /* ---------- Ranked table ---------- */
 .table-wrap { padding: 0 24px 40px; overflow-x: auto; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 14px; }
@@ -225,6 +229,20 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
 .d-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px 28px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .d-controls label { display: grid; gap: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
 .d-controls select { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink); width: 100%; }
+
+/* CV & cover letter generation */
+.d-docs { padding: 14px 28px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.d-docs-main { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; }
+.d-docs-main input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+.d-docs-main input:disabled { cursor: default; }
+.d-docs-detail { grid-column: 1; font-size: 13.5px; color: var(--ink-2); padding-left: 28px; }
+.d-docs-again { grid-column: 2; grid-row: 1 / span 2; }
+.d-docs.busy { background: var(--warn-soft); }
+.d-docs.ready { background: var(--good-soft); }
+.d-docs.ready .d-docs-detail a { color: var(--good); font-weight: 500; }
+.d-docs.failed .d-docs-detail { color: var(--bad); }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; opacity: .7; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .d-tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .d-tabs button { border: 0; background: none; padding: 12px 10px; cursor: pointer; font-weight: 500; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
@@ -281,7 +299,7 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
   .col { scroll-snap-align: start; max-height: none; }
   .table-wrap { padding: 0 16px 32px; }
   .hide-col { display: none; }
-  .d-head, .d-controls, .d-panel { padding-left: 16px; padding-right: 16px; }
+  .d-head, .d-controls, .d-panel, .d-docs { padding-left: 16px; padding-right: 16px; }
   .d-tabs { padding: 0 8px; overflow-x: auto; }
   .d-controls { grid-template-columns: 1fr; }
 }
