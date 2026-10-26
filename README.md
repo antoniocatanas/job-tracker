@@ -90,7 +90,7 @@ api/login.js        POST password → session cookie
 api/logout.js       POST → clears the cookie
 api/session.js      GET → { signedIn }
 api/autofill.js     POST { id } → retry "Complete job from tracker" for a job added by hand
-api/jobs/index.js   GET → all jobs (light fields) + select options
+api/jobs/index.js   GET → all jobs (light fields) + select options · POST adds a job by hand
 api/jobs/[id].js    GET one job (all fields) · PATCH editable fields
 api/generate.js     POST { id } → Docs status "Requested" + starts the Claude task
 lib/claude.js       calls the Claude task's API trigger
