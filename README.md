@@ -2,6 +2,7 @@
 
 A private web app on top of the **Job Search Tracker** Airtable base (`appfZkhr2AnDVkuiD`, table `Jobs`).
 
+- **Add job**: type a company, role and link. The job is added to Airtable as New and the "Complete job from tracker" Claude task fills in the rest (job description, location, segment, OTE, score and brief) using the same rubric as the daily search. Duplicates (same link, or same company and role) are caught before anything is saved.
 - **Pipeline**: kanban by Status. Drag a card to another column to update it in Airtable.
 - **Ranked**: every active job sorted by Score, with sortable columns and filters.
 - **Generate CV & cover letter**: a tickbox in the job panel. Ticking it starts the "Draft CV & cover letter" Claude task, which writes both as Google Docs in the job's folder under Drive → Applications, sets the Drive folder link and marks the job Drafted. The app shows progress live and a Docs log tab with links.
@@ -55,6 +56,16 @@ Every push to `main` redeploys automatically. If you change an environment varia
 
 The task only accepts a record ID from the app and only acts on jobs whose Docs status is "Requested", so a leaked token can't make it do anything else. To revoke access, delete or regenerate the token in the same Edit dialog.
 
+## Turn on Add job auto-complete
+
+Same steps as above, for the other task:
+
+1. Go to <https://claude.ai/code/routines> and open **Complete job from tracker**.
+2. **Edit** → **Trigger** row → **+** → **API**. Copy the **Fire URL**, then **Generate token** and copy it.
+3. In Vercel, add `CLAUDE_AUTOFILL_FIRE_URL` and `CLAUDE_AUTOFILL_TOKEN`, then redeploy.
+
+Until then, Add job still saves the row, marks it "Auto-complete failed", and offers **Try again** in the job panel.
+
 ## Run it locally
 
 Node 18+ is the only requirement.
@@ -78,6 +89,7 @@ npm run dev           # your real base at http://localhost:3000
 api/login.js        POST password → session cookie
 api/logout.js       POST → clears the cookie
 api/session.js      GET → { signedIn }
+api/autofill.js     POST { id } → retry "Complete job from tracker" for a job added by hand
 api/jobs/index.js   GET → all jobs (light fields) + select options
 api/jobs/[id].js    GET one job (all fields) · PATCH editable fields
 api/generate.js     POST { id } → Docs status "Requested" + starts the Claude task

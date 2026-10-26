@@ -39,6 +39,10 @@
         <button role="tab" data-view="ranked" aria-selected="false">Ranked</button>
       </nav>
       <div class="topbar-actions">
+        <button id="add-job" class="btn btn-primary" title="Add a job by hand">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="hide-sm">Add job</span>
+        </button>
         <button id="refresh" class="btn btn-ghost" title="Reload from Airtable">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span class="hide-sm">Refresh</span>
@@ -70,6 +74,31 @@
   <aside id="drawer" class="drawer" aria-hidden="true" aria-labelledby="d-company" role="dialog">
     <div class="drawer-inner" id="drawer-body"></div>
   </aside>
+
+  <!-- Add a job by hand -->
+  <dialog id="add-dialog" class="add-dialog" aria-labelledby="add-title">
+    <form id="add-form" method="dialog" novalidate>
+      <h2 id="add-title">Add a job</h2>
+      <p class="muted">Paste the posting and Claude fills in the rest: job description, location, segment, OTE, score and brief. It takes a few minutes.</p>
+      <label class="field">
+        <span>Company</span>
+        <input id="add-company" name="company" required maxlength="120" autocomplete="off" placeholder="e.g. Pigment">
+      </label>
+      <label class="field">
+        <span>Role</span>
+        <input id="add-role" name="role" required maxlength="200" autocomplete="off" placeholder="e.g. Mid-Market Account Executive">
+      </label>
+      <label class="field">
+        <span>Link to the posting</span>
+        <input id="add-link" name="link" type="url" required maxlength="2000" autocomplete="off" placeholder="https://">
+      </label>
+      <p id="add-error" class="error" role="alert" hidden></p>
+      <div class="add-actions">
+        <button type="button" id="add-cancel" class="btn btn-ghost">Cancel</button>
+        <button type="submit" id="add-submit" class="btn btn-primary">Add and complete</button>
+      </div>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
 

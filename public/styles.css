@@ -303,3 +303,29 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
   .d-tabs { padding: 0 8px; overflow-x: auto; }
   .d-controls { grid-template-columns: 1fr; }
 }
+
+/* ---------- Add a job ---------- */
+.add-dialog {
+  width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow);
+}
+.add-dialog::backdrop { background: rgba(18, 21, 20, .45); }
+.add-dialog form { display: grid; gap: 14px; padding: 24px; }
+.add-dialog h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+.add-dialog p { margin: 0; font-size: 14px; }
+.add-dialog input {
+  background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); font: inherit;
+}
+.add-dialog input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.add-actions .btn { padding: 9px 16px; }
+.add-error-open { margin-left: 4px; }
+
+.chip.fill-requested, .chip.fill-researching { background: var(--accent-soft); color: var(--accent); }
+.chip.fill-failed { background: var(--bad-soft); color: var(--bad); }
+.card.filling { border-style: dashed; }
+
+.d-fill { padding: 12px 28px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; font-size: 13.5px; background: var(--accent-soft); color: var(--ink-2); }
+.d-fill.failed { background: var(--bad-soft); color: var(--bad); }
+.d-fill .btn { margin-left: auto; }
+@media (max-width: 640px) { .d-fill { padding-left: 16px; padding-right: 16px; } }

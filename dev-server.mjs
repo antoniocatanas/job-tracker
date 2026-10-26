@@ -27,6 +27,7 @@ const routes = [
   [/^\/api\/logout$/, './api/logout.js'],
   [/^\/api\/session$/, './api/session.js'],
   [/^\/api\/generate$/, './api/generate.js'],
+  [/^\/api\/autofill$/, './api/autofill.js'],
   [/^\/api\/jobs\/?$/, './api/jobs/index.js'],
   [/^\/api\/jobs\/([^/]+)$/, './api/jobs/[id].js', 'id'],
 ];

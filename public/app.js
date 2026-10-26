@@ -11,6 +11,9 @@ const DETAIL_TABS = [
 ];
 const DOCS_BUSY = ['Requested', 'Drafting'];
 const DOCS_LABEL = { Requested: 'Docs requested', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };
+const FILL_BUSY = ['Requested', 'Researching'];
+const FILL_LABEL = { Requested: 'Claude starting…', Researching: 'Claude filling in…', Failed: 'Auto-complete failed' };
+const isBusy = (j) => DOCS_BUSY.includes(j.docsStatus) || FILL_BUSY.includes(j.autofillStatus);
 
 const state = {
   jobs: [],
@@ -25,6 +28,7 @@ const state = {
   notesDraft: null, // { id, value } — survives re-renders until saved
   lastFocus: null,
   generating: null, // job id while the generate request is in flight
+  retrying: null, // job id while an auto-complete retry is in flight
 };
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -219,8 +223,9 @@ function shortOte(ote) {
 
 function card(job) {
   const dead = trimmed(job.select) === 'Dead';
+  const filling = FILL_BUSY.includes(job.autofillStatus);
   const el = h('button', {
-    class: 'card' + (dead ? ' dead' : ''), draggable: 'true', type: 'button',
+    class: 'card' + (dead ? ' dead' : '') + (filling ? ' filling' : ''), draggable: 'true', type: 'button',
     onclick: () => openDrawer(job.id),
     ondragstart: (e) => { e.dataTransfer.setData('text/plain', job.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); },
     ondragend: () => el.classList.remove('dragging'),
@@ -228,6 +233,9 @@ function card(job) {
   h('div', { class: 'card-top' }, h('div', { class: 'card-company' }, job.company || 'Untitled'), scoreBadge(job.score)),
   job.role ? h('div', { class: 'card-role' }, job.role) : null,
   h('div', { class: 'card-meta' },
+    FILL_LABEL[job.autofillStatus] ? h('span', { class: `chip fill-${job.autofillStatus.toLowerCase()}` },
+      filling ? h('span', { class: 'spinner', 'aria-hidden': 'true', style: 'width:10px;height:10px;display:inline-block;vertical-align:-1px;margin-right:5px' }) : null,
+      FILL_LABEL[job.autofillStatus]) : null,
     job.segment ? h('span', { class: 'chip' }, job.segment) : null,
     job.location ? h('span', { class: 'chip' }, job.location) : null,
     shortOte(job.ote) ? h('span', { class: 'chip', title: job.ote }, shortOte(job.ote)) : null,
@@ -524,7 +532,7 @@ function renderDrawer() {
       : h('p', { class: 'empty-note' }, 'Nothing here yet.'));
   }
 
-  $('#drawer-body').replaceChildren(head, controls, docsPanel(job), tabs, panel);
+  $('#drawer-body').replaceChildren(...[head, fillBanner(job), controls, docsPanel(job), tabs, panel].filter(Boolean));
 }
 
 // ---------------- CV & cover letter generation ----------------
@@ -589,13 +597,16 @@ function mergeJob(saved) {
 let pollTimer = null;
 function schedulePoll() {
   clearTimeout(pollTimer);
-  if (!state.jobs.some((j) => DOCS_BUSY.includes(j.docsStatus))) return;
-  pollTimer = setTimeout(poll, 20_000);
+  const busy = state.jobs.filter(isBusy);
+  if (!busy.length) return;
+  // Auto-complete is quicker than drafting, so check more often while one is running.
+  pollTimer = setTimeout(poll, busy.some((j) => FILL_BUSY.includes(j.autofillStatus)) ? 10_000 : 20_000);
 }
 
 async function poll() {
   if (document.hidden) return schedulePoll();
   const before = new Map(state.jobs.map((j) => [j.id, j.docsStatus]));
+  const beforeFill = new Map(state.jobs.map((j) => [j.id, j.autofillStatus]));
   try {
     const data = await api('/api/jobs');
     state.jobs = data.jobs;
@@ -605,6 +616,14 @@ async function poll() {
         state.details.delete(j.id); // refetch full record (Drive folder, Docs log)
         if (j.docsStatus === 'Ready' && DOCS_BUSY.includes(was)) toast(`CV & cover letter ready: ${j.company}`);
         if (j.docsStatus === 'Failed' && DOCS_BUSY.includes(was)) toast(`Drafting failed for ${j.company}. See Docs log.`, true);
+      }
+      const wasFill = beforeFill.get(j.id);
+      if (wasFill !== j.autofillStatus) {
+        state.details.delete(j.id);
+        if (FILL_BUSY.includes(wasFill) && j.autofillStatus === 'Done') {
+          toast(j.score != null ? `${j.company} filled in: scored ${j.score}/100` : `${j.company} filled in (${j.status})`);
+        }
+        if (FILL_BUSY.includes(wasFill) && j.autofillStatus === 'Failed') toast(`Couldn't complete ${j.company}. See Brief.`, true);
       }
     }
     render();
@@ -618,6 +637,111 @@ async function poll() {
   schedulePoll();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePoll(); });
+
+// ---------------- Jobs added by hand ----------------
+function fillBanner(job) {
+  const st = job.autofillStatus;
+  if (st === 'Requested' || st === 'Researching' || state.retrying === job.id) {
+    return h('div', { class: 'd-fill' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+      st === 'Researching'
+        ? 'Claude is reading the posting and researching the company. The score and brief appear here when it\'s done.'
+        : 'Claude is starting. This usually takes 3–6 minutes; you can close this panel.');
+  }
+  if (st === 'Failed') {
+    return h('div', { class: 'd-fill failed' }, 'Claude couldn\'t complete this job (see Brief).',
+      h('button', { class: 'btn', type: 'button', onclick: () => retryAutofill(job.id) }, 'Try again'));
+  }
+  return null;
+}
+
+async function retryAutofill(id) {
+  state.retrying = id;
+  renderDrawer();
+  try {
+    const { job } = await api('/api/autofill', { method: 'POST', body: JSON.stringify({ id }) });
+    mergeJob(job);
+    toast('Claude is filling in this job');
+  } catch (ex) {
+    if (ex.message !== 'Signed out') toast(ex.message, true);
+    try { mergeJob((await api(`/api/jobs/${encodeURIComponent(id)}`)).job); } catch {}
+  } finally {
+    state.retrying = null;
+    render();
+    if (state.openId === id) renderDrawer();
+    schedulePoll();
+  }
+}
+
+const addDialog = $('#add-dialog');
+const addForm = $('#add-form');
+const addError = $('#add-error');
+
+function showAddError(msg, existingId) {
+  addError.replaceChildren(msg, existingId
+    ? h('button', { type: 'button', class: 'btn btn-ghost add-error-open', onclick: () => { addDialog.close(); openDrawer(existingId); } }, 'Open it')
+    : null);
+  addError.hidden = false;
+}
+
+$('#add-job').addEventListener('click', () => {
+  addForm.reset();
+  addError.hidden = true;
+  addDialog.showModal();
+  $('#add-company').focus();
+});
+$('#add-cancel').addEventListener('click', () => addDialog.close());
+
+// Pasting a link into Company or Role usually means it belongs in Link.
+for (const sel of ['#add-company', '#add-role']) {
+  $(sel).addEventListener('paste', (e) => {
+    const text = e.clipboardData?.getData('text')?.trim() || '';
+    if (/^https?:\/\/\S+$/i.test(text) && !$('#add-link').value) {
+      e.preventDefault();
+      $('#add-link').value = text;
+    }
+  });
+}
+
+addForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  addError.hidden = true;
+  const company = $('#add-company').value.trim();
+  const role = $('#add-role').value.trim();
+  const link = $('#add-link').value.trim();
+  if (!company || !role || !link) return showAddError('Company, role and link are all needed.');
+  if (!safeUrl(link)) return showAddError('The link should start with https://');
+
+  const btn = $('#add-submit');
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/jobs', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, role, link }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { addDialog.close(); return showLogin(); }
+    if (!res.ok) return showAddError(data.error || `Couldn't add it (${res.status})`, data.existingId);
+
+    const job = data.job;
+    state.jobs.push(job);
+    state.details.set(job.id, job);
+    addDialog.close();
+    // Make sure the new card is visible.
+    if (state.view === 'ranked' && state.status && state.status !== 'New') { state.status = ''; $('#f-status').value = ''; }
+    render();
+    schedulePoll();
+    toast(data.autofillStarted
+      ? `${job.company} added. Claude is filling in the rest.`
+      : `${job.company} added, but Claude couldn't start: ${data.autofillError}`, !data.autofillStarted);
+  } catch (ex) {
+    showAddError(ex.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add and complete';
+  }
+});
 
 // ---------------- Controls ----------------
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
