@@ -10,9 +10,9 @@ const DETAIL_TABS = [
   ['brief', 'Brief'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
 ];
 const DOCS_BUSY = ['Requested', 'Drafting'];
-const DOCS_LABEL = { Requested: 'Docs requested', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };
+const DOCS_LABEL = { Requested: 'Docs queued', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };
 const FILL_BUSY = ['Requested', 'Researching'];
-const FILL_LABEL = { Requested: 'Claude starting…', Researching: 'Claude filling in…', Failed: 'Auto-complete failed' };
+const FILL_LABEL = { Requested: 'Queued for Claude', Researching: 'Claude filling in…', Failed: 'Auto-complete failed' };
 const isBusy = (j) => DOCS_BUSY.includes(j.docsStatus) || FILL_BUSY.includes(j.autofillStatus);
 
 const state = {
@@ -551,7 +551,7 @@ function docsPanel(job) {
   const folder = safeUrl(job.driveFolder);
   let detail;
   if (state.generating === job.id) detail = 'Starting Claude…';
-  else if (status === 'Requested') detail = 'Claude is starting. This usually takes 5–10 minutes; you can close this panel.';
+  else if (status === 'Requested') detail = 'Queued. Claude checks for requests every hour, then takes about 10 minutes to draft. You can close this panel.';
   else if (status === 'Drafting') detail = 'Claude is researching the company and writing both documents…';
   else if (ready) detail = h('span', {}, 'Saved to Google Drive. ', folder ? h('a', { href: folder, target: '_blank', rel: 'noopener noreferrer' }, 'Open folder ↗') : null);
   else if (status === 'Failed') detail = 'The last attempt failed (see Docs log). Tick to try again.';
@@ -574,7 +574,7 @@ async function generateDocs(id) {
   try {
     const { job: saved } = await api('/api/generate', { method: 'POST', body: JSON.stringify({ id }) });
     mergeJob(saved);
-    toast('Claude is drafting your CV and cover letter');
+    toast('Queued: Claude will draft your CV and cover letter within the hour');
   } catch (ex) {
     if (ex.message !== 'Signed out') toast(ex.message, true);
     // Refresh this job so the panel shows the real state (e.g. Failed).
@@ -600,7 +600,9 @@ function schedulePoll() {
   const busy = state.jobs.filter(isBusy);
   if (!busy.length) return;
   // Auto-complete is quicker than drafting, so check more often while one is running.
-  pollTimer = setTimeout(poll, busy.some((j) => FILL_BUSY.includes(j.autofillStatus)) ? 10_000 : 20_000);
+  // Jobs only waiting in the queue are checked once a minute.
+  const working = busy.some((j) => j.docsStatus === 'Drafting' || j.autofillStatus === 'Researching');
+  pollTimer = setTimeout(poll, working ? 15_000 : 60_000);
 }
 
 async function poll() {
@@ -645,7 +647,7 @@ function fillBanner(job) {
     return h('div', { class: 'd-fill' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }),
       st === 'Researching'
         ? 'Claude is reading the posting and researching the company. The score and brief appear here when it\'s done.'
-        : 'Claude is starting. This usually takes 3–6 minutes; you can close this panel.');
+        : 'Queued. Claude checks for new jobs every hour, then takes a few minutes to fill this in. You can close this panel.');
   }
   if (st === 'Failed') {
     return h('div', { class: 'd-fill failed' }, 'Claude couldn\'t complete this job (see Brief).',
@@ -660,7 +662,7 @@ async function retryAutofill(id) {
   try {
     const { job } = await api('/api/autofill', { method: 'POST', body: JSON.stringify({ id }) });
     mergeJob(job);
-    toast('Claude is filling in this job');
+    toast('Queued: Claude will fill in this job within the hour');
   } catch (ex) {
     if (ex.message !== 'Signed out') toast(ex.message, true);
     try { mergeJob((await api(`/api/jobs/${encodeURIComponent(id)}`)).job); } catch {}
@@ -733,7 +735,7 @@ addForm.addEventListener('submit', async (e) => {
     render();
     schedulePoll();
     toast(data.autofillStarted
-      ? `${job.company} added. Claude is filling in the rest.`
+      ? `${job.company} added. Claude fills in the rest within the hour.`
       : `${job.company} added, but Claude couldn't start: ${data.autofillError}`, !data.autofillStarted);
   } catch (ex) {
     showAddError(ex.message);

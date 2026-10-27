@@ -46,25 +46,23 @@ git push -u origin main
 
 Every push to `main` redeploys automatically. If you change an environment variable, redeploy from the Vercel dashboard for it to take effect.
 
-## Turn on CV & cover letter generation
+## CV & cover letter generation and Add job auto-complete
 
-1. Go to <https://claude.ai/code/routines> and open **Draft CV & cover letter (from job tracker)**.
-2. Open the menu next to its name → **Edit**. In the **Trigger** row click **+** → **API**.
-3. Copy the **Fire URL**, then click **Generate token** and copy the token (shown once).
-4. In Vercel → Project → **Settings → Environment Variables**, add `CLAUDE_TASK_FIRE_URL` (the Fire URL) and `CLAUDE_TASK_TOKEN` (the token).
-5. **Deployments** → ⋯ on the latest → **Redeploy**.
+Both run on an hourly check, so there's nothing to set up:
 
-The task only accepts a record ID from the app and only acts on jobs whose Docs status is "Requested", so a leaked token can't make it do anything else. To revoke access, delete or regenerate the token in the same Edit dialog.
+- Ticking **Generate CV & cover letter** sets the job's Docs status to "Requested". The scheduled task **Draft CV & cover letter (from job tracker)** runs every hour, drafts the docs for every "Requested" job, and sets them to "Ready".
+- **Add job** saves the row with Autofill status "Requested". The scheduled task **Complete job from tracker** runs every hour and fills in every "Requested" job.
 
-## Turn on Add job auto-complete
+The app shows these as "queued" until Claude picks them up (up to an hour, then a few minutes of work).
 
-Same steps as above, for the other task:
+### Optional: start instantly instead
 
-1. Go to <https://claude.ai/code/routines> and open **Complete job from tracker**.
-2. **Edit** → **Trigger** row → **+** → **API**. Copy the **Fire URL**, then **Generate token** and copy it.
-3. In Vercel, add `CLAUDE_AUTOFILL_FIRE_URL` and `CLAUDE_AUTOFILL_TOKEN`, then redeploy.
+If your account offers an API trigger for scheduled tasks (task → **Edit** → **Trigger** → **+** → **API**), you can make the app start Claude straight away. Add the Fire URL and token to Vercel and redeploy:
 
-Until then, Add job still saves the row, marks it "Auto-complete failed", and offers **Try again** in the job panel.
+- Docs: `CLAUDE_TASK_FIRE_URL` and `CLAUDE_TASK_TOKEN`
+- Add job: `CLAUDE_AUTOFILL_FIRE_URL` and `CLAUDE_AUTOFILL_TOKEN`
+
+When those are set, the app fires the task right away; when they're missing, it falls back to the hourly queue. The hourly run still catches anything the instant trigger missed.
 
 ## Run it locally
 

@@ -1,11 +1,11 @@
 import { send, readJson, isJsonRequest, handleError } from '../lib/http.js';
 import { requireAuth } from '../lib/auth.js';
 import { getJob, writeFields, assertRecordId } from '../lib/airtable.js';
-import { fireDocsTask } from '../lib/claude.js';
+import { fireDocsTask, hasTrigger } from '../lib/claude.js';
 import * as mock from '../lib/mock.js';
 
 const IN_PROGRESS = ['Requested', 'Drafting'];
-const STALE_MS = 45 * 60 * 1000; // a run stuck this long can be retried
+const STALE_MS = 3 * 60 * 60 * 1000; // a request stuck this long can be retried (the task runs hourly)
 
 // POST /api/generate { id } → marks the job "Requested" and starts the Claude task.
 export default async function handler(req, res) {
@@ -34,6 +34,9 @@ export default async function handler(req, res) {
       mock.simulateDocs(id);
       return send(res, 200, { job: saved, sessionUrl: null });
     }
+
+    // Hourly mode: the scheduled task picks up "Requested" jobs on its next run.
+    if (!hasTrigger('docs')) return send(res, 200, { job: saved, sessionUrl: null, queued: true });
 
     try {
       const { sessionUrl } = await fireDocsTask(id);
