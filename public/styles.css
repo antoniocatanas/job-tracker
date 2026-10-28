@@ -133,6 +133,19 @@ select { padding-right: 28px; appearance: none; cursor: pointer;
 .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
 .stat-value { font-family: var(--mono); font-size: 24px; font-weight: 500; letter-spacing: -.02em; margin-top: 2px; }
 .stat-value small { font-size: 13px; color: var(--muted); }
+.stat-status { border: 0; text-align: left; font: inherit; cursor: pointer; transition: filter .12s, opacity .12s, box-shadow .12s; }
+.stat-status .stat-label { color: inherit; opacity: .75; }
+.stat-status:hover { filter: brightness(.96); }
+.stat-status:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+.stat-status.on { box-shadow: inset 0 0 0 2px currentColor; }
+.stat-status.off { opacity: .45; }
+.linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
+.linkish:hover { text-decoration: underline; }
+
+/* One status chosen: show its column full width, cards in a grid */
+.board.single { grid-auto-flow: row; grid-auto-columns: auto; }
+.board.single .col { max-height: none; }
+.board.single .col-body { grid-template-columns: repeat(auto-fill, minmax(264px, 1fr)); align-items: start; }
 
 /* ---------- Filters ---------- */
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px 24px; }

@@ -2,9 +2,17 @@
 
 const ACTIVE = ['New', 'Shortlisted', 'Drafted', 'Applied', 'Interviewing'];
 const CLOSED = ['Rejected', 'Skipped', 'JD unavailable'];
+// Colours match the Status field in Airtable (blueLight2, cyanLight2, tealLight2, greenLight2,
+// greenBright, redLight2, grayLight2, orangeLight2). If you recolour an option there, update it here.
+const STATUS_FILL = {
+  New: '#cfdfff', Shortlisted: '#d0f0fd', Drafted: '#c2f5e9', Applied: '#d1f7c4', Interviewing: '#20c933',
+  Rejected: '#ffdce5', Skipped: '#eeeeee', 'JD unavailable': '#fee2d5', '': '#eeeeee',
+};
+const STATUS_TEXT = { Interviewing: '#ffffff' }; // Airtable puts white text on bright colours
+// Stronger shade of the same hue, for small dots.
 const STATUS_COLOR = {
-  New: '#5b8def', Shortlisted: '#2bb3c0', Drafted: '#2f9e8f', Applied: '#3fa45b', Interviewing: '#1f7a4f',
-  Rejected: '#c4554a', Skipped: '#9aa29d', 'JD unavailable': '#d38a2c', '': '#9aa29d',
+  New: '#2d7ff9', Shortlisted: '#18bfff', Drafted: '#20d9d2', Applied: '#20c933', Interviewing: '#20c933',
+  Rejected: '#f82b60', Skipped: '#8b8b8b', 'JD unavailable': '#ff6f2c', '': '#8b8b8b',
 };
 const DETAIL_TABS = [
   ['brief', 'Brief'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
@@ -170,10 +178,8 @@ function filtered() {
     if (q && !`${j.company || ''} ${j.role || ''}`.toLowerCase().includes(q)) return false;
     if (state.segment && j.segment !== state.segment) return false;
     if (state.location && j.location !== state.location) return false;
-    if (state.view === 'ranked') {
-      if (state.status) return j.status === state.status;
-      if (!state.showClosed && CLOSED.includes(j.status)) return false;
-    }
+    if (state.status) return (j.status || 'New') === state.status;
+    if (state.view === 'ranked' && !state.showClosed && CLOSED.includes(j.status)) return false;
     return true;
   });
 }
@@ -203,10 +209,29 @@ function renderStats() {
   const cell = (label, value, extra) => h('div', { class: 'stat' },
     h('div', { class: 'stat-label' }, label),
     h('div', { class: 'stat-value' }, value, extra ? h('small', {}, extra) : null));
+  const statusCell = (s) => {
+    const on = state.status === s;
+    return h('button', {
+      type: 'button',
+      class: 'stat stat-status' + (on ? ' on' : '') + (state.status && !on ? ' off' : ''),
+      style: `background:${STATUS_FILL[s]};color:${STATUS_TEXT[s] || '#1d1f25'}`,
+      'aria-pressed': String(on),
+      title: on ? 'Show all statuses' : `Show only ${s}`,
+      onclick: () => setStatusFilter(on ? '' : s),
+    },
+    h('div', { class: 'stat-label' }, s),
+    h('div', { class: 'stat-value' }, count(s)));
+  };
   $('#stats').replaceChildren(
-    ...ACTIVE.map((s) => cell(s, count(s))),
+    ...ACTIVE.map(statusCell),
     cell('Avg score', avg, typeof avg === 'number' ? ' /100' : null),
   );
+}
+
+function setStatusFilter(s) {
+  state.status = s;
+  $('#f-status').value = s;
+  render();
 }
 
 function scoreBadge(score) {
@@ -248,14 +273,16 @@ function card(job) {
 
 function renderBoard() {
   const list = filtered();
-  const columns = [...ACTIVE, ...(state.showClosed ? CLOSED : [])];
+  const columns = state.status ? [state.status] : [...ACTIVE, ...(state.showClosed ? CLOSED : [])];
+  $('#board').classList.toggle('single', Boolean(state.status));
   const groups = Object.fromEntries(columns.map((c) => [c, []]));
   let hidden = 0;
   for (const j of list) {
     const s = j.status || 'New';
     if (groups[s]) groups[s].push(j); else hidden++;
   }
-  $('#count').textContent = `${list.length - hidden} shown` + (hidden ? ` · ${hidden} closed hidden` : '');
+  $('#count').replaceChildren(`${list.length - hidden} shown` + (hidden ? ` · ${hidden} closed hidden` : ''),
+    ...(state.status ? [` · ${state.status} only · `, h('button', { type: 'button', class: 'linkish', onclick: () => setStatusFilter('') }, 'Show all')] : []));
 
   $('#board').replaceChildren(...columns.map((status) => {
     const jobs = groups[status].sort(byScore);
@@ -731,7 +758,7 @@ addForm.addEventListener('submit', async (e) => {
     state.details.set(job.id, job);
     addDialog.close();
     // Make sure the new card is visible.
-    if (state.view === 'ranked' && state.status && state.status !== 'New') { state.status = ''; $('#f-status').value = ''; }
+    if (state.status && state.status !== 'New') { state.status = ''; $('#f-status').value = ''; }
     render();
     schedulePoll();
     toast(data.autofillStarted
@@ -756,7 +783,7 @@ let qTimer;
 $('#q').addEventListener('input', (e) => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 120); });
 $('#f-segment').addEventListener('change', (e) => { state.segment = e.target.value; render(); });
 $('#f-location').addEventListener('change', (e) => { state.location = e.target.value; render(); });
-$('#f-status').addEventListener('change', (e) => { state.status = e.target.value; render(); });
+$('#f-status').addEventListener('change', (e) => setStatusFilter(e.target.value));
 $('#f-closed').addEventListener('change', (e) => { state.showClosed = e.target.checked; render(); });
 
 // ---------------- Boot ----------------
