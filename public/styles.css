@@ -1,12 +1,14 @@
 :root {
   --bg: #f4f1ea;
   --surface: #fbfaf6;
-  --surface-2: #efebe2;
+  --surface-2: #e9e4d8;
+  --card: #ffffff;
+  --chip: #ece7dc;
   --ink: #1b1f1d;
-  --ink-2: #4a514d;
-  --muted: #7b827e;
-  --line: #ded8cb;
-  --line-strong: #c9c1b0;
+  --ink-2: #39403c;
+  --muted: #636a66;
+  --line: #d6cfbf;
+  --line-strong: #b9b09c;
   --accent: #1f5c4a;
   --accent-ink: #ffffff;
   --accent-soft: #dde9e3;
@@ -25,28 +27,56 @@
   color-scheme: light;
 }
 
+/* Dark theme: used when chosen with the theme button, or when the device is in dark mode and "Auto" is on. */
+:root[data-theme="dark"] {
+    --bg: #0c0f0e;
+    --surface: #1c2220;
+    --surface-2: #141917;
+    --card: #2a312e;
+    --chip: #3b4440;
+    --ink: #f6f8f5;
+    --ink-2: #d9dfda;
+    --muted: #a9b2ac;
+    --line: #38413c;
+    --line-strong: #56605a;
+    --accent: #7dd8b4;
+    --accent-ink: #08140f;
+    --accent-soft: #1f4a3b;
+    --good: #8de6b5;
+    --good-soft: #1d4a32;
+    --warn: #f5c56b;
+    --warn-soft: #4d3b14;
+    --low: #c3cac5;
+    --low-soft: #3b4440;
+    --bad: #ff9d92;
+    --bad-soft: #552520;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121514;
-    --surface: #1a1e1c;
-    --surface-2: #222724;
-    --ink: #ecefe9;
-    --ink-2: #b9c0ba;
-    --muted: #858d88;
-    --line: #2c322f;
-    --line-strong: #3a423e;
-    --accent: #6fc2a2;
-    --accent-ink: #0d1a15;
-    --accent-soft: #1d3a30;
-    --good: #7fd3a6;
-    --good-soft: #1c3a2a;
-    --warn: #e7bb63;
-    --warn-soft: #3a2f17;
-    --low: #9aa29d;
-    --low-soft: #2a2f2c;
-    --bad: #ef8f84;
-    --bad-soft: #3d221f;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f0e;
+    --surface: #1c2220;
+    --surface-2: #141917;
+    --card: #2a312e;
+    --chip: #3b4440;
+    --ink: #f6f8f5;
+    --ink-2: #d9dfda;
+    --muted: #a9b2ac;
+    --line: #38413c;
+    --line-strong: #56605a;
+    --accent: #7dd8b4;
+    --accent-ink: #08140f;
+    --accent-soft: #1f4a3b;
+    --good: #8de6b5;
+    --good-soft: #1d4a32;
+    --warn: #f5c56b;
+    --warn-soft: #4d3b14;
+    --low: #c3cac5;
+    --low-soft: #3b4440;
+    --bad: #ff9d92;
+    --bad-soft: #552520;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
 }
@@ -171,7 +201,7 @@ select { padding-right: 28px; appearance: none; cursor: pointer;
 .col-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 8px; }
 
 .card {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px;
   cursor: pointer; display: grid; gap: 6px; text-align: left; width: 100%;
   transition: border-color .12s, box-shadow .12s, transform .12s;
 }
@@ -185,7 +215,7 @@ select { padding-right: 28px; appearance: none; cursor: pointer;
 
 .chip {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 500; line-height: 1;
-  padding: 4px 7px; border-radius: 5px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap;
+  padding: 4px 7px; border-radius: 5px; background: var(--chip); color: var(--ink-2); white-space: nowrap;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .chip.app { background: var(--accent-soft); color: var(--accent); }
@@ -342,3 +372,6 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
 .d-fill.failed { background: var(--bad-soft); color: var(--bad); }
 .d-fill .btn { margin-left: auto; }
 @media (max-width: 640px) { .d-fill { padding-left: 16px; padding-right: 16px; } }
+
+/* Theme button */
+.theme-btn svg { display: block; }
