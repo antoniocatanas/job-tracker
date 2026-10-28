@@ -15,7 +15,7 @@ const STATUS_COLOR = {
   Rejected: '#f82b60', Skipped: '#8b8b8b', 'JD unavailable': '#ff6f2c', '': '#8b8b8b',
 };
 const DETAIL_TABS = [
-  ['brief', 'Brief'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
+  ['brief', 'Brief'], ['competitors', 'Competitors'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
 ];
 const DOCS_BUSY = ['Requested', 'Drafting'];
 const DOCS_LABEL = { Requested: 'Docs queued', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };

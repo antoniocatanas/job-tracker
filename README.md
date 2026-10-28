@@ -6,7 +6,7 @@ A private web app on top of the **Job Search Tracker** Airtable base (`appfZkhr2
 - **Pipeline**: kanban by Status. Drag a card to another column to update it in Airtable.
 - **Ranked**: every active job sorted by Score, with sortable columns and filters.
 - **Generate CV & cover letter**: a tickbox in the job panel. Ticking it starts the "Draft CV & cover letter" Claude task, which writes both as Google Docs in the job's folder under Drive → Applications, sets the Drive folder link and marks the job Drafted. The app shows progress live and a Docs log tab with links.
-- **Job panel**: Brief, Job description, Interview prep (Assets) and editable Notes, plus Status, Application Status and Alive/Dead controls and links to the posting, Drive folder and meeting prep.
+- **Job panel**: Brief, Competitors (positioning plus at least two competitors with pros and cons, written by the Claude tasks), Job description, Interview prep (Assets) and editable Notes, plus Status, Application Status and Alive/Dead controls and links to the posting, Drive folder and meeting prep.
 
 No framework and no npm dependencies: static files in `public/`, serverless functions in `api/`.
 
