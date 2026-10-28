@@ -253,7 +253,7 @@ function renderStats() {
     h('div', { class: 'stat-value' }, count(s)));
   };
   $('#stats').replaceChildren(
-    ...ACTIVE.map(statusCell),
+    ...[...ACTIVE, 'Rejected'].map(statusCell),
     cell('Avg score', avg, typeof avg === 'number' ? ' /100' : null),
   );
 }
