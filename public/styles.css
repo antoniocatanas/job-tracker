@@ -186,6 +186,7 @@ select { padding-right: 28px; appearance: none; cursor: pointer;
 .toggle input { accent-color: var(--accent); width: 15px; height: 15px; }
 .count { margin-left: auto; font-size: 13px; }
 .app[data-view="pipeline"] .ranked-only { display: none; }
+.filters select.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 
 /* ---------- Board ---------- */
 .board {

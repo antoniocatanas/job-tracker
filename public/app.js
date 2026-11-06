@@ -27,7 +27,7 @@ const state = {
   jobs: [],
   choices: {},
   view: 'pipeline',
-  q: '', segment: '', location: '', status: '', showClosed: false,
+  q: '', segment: '', location: '', status: '', stage: '', showClosed: false,
   sort: { key: 'score', dir: 'desc' },
   details: new Map(),
   openId: null,
@@ -202,17 +202,45 @@ function fillFilterOptions() {
 }
 
 // ---------------- Filtering ----------------
-function filtered() {
+// Filters stack: search, segment, location, status and application stage all apply together.
+const NO_STAGE = '__none';
+const stageOf = (j) => trimmed(j.appStatus);
+const stageMatches = (j, stage) => (stage === NO_STAGE ? !stageOf(j) : stageOf(j) === trimmed(stage));
+
+function filtered({ ignoreStage = false } = {}) {
   const q = state.q.toLowerCase();
   return state.jobs.filter((j) => {
     if (q && !`${j.company || ''} ${j.role || ''}`.toLowerCase().includes(q)) return false;
     if (state.segment && j.segment !== state.segment) return false;
     if (state.location && j.location !== state.location) return false;
+    if (!ignoreStage && state.stage && !stageMatches(j, state.stage)) return false;
     if (state.status) return (j.status || 'New') === state.status;
     if (state.view === 'ranked' && !state.showClosed && CLOSED.includes(j.status)) return false;
     return true;
   });
 }
+
+// Application stage dropdown, with counts for the jobs the other filters leave in view.
+function renderStageOptions() {
+  const sel = $('#f-stage');
+  const hideClosed = !state.status && !state.showClosed; // the board hides closed jobs too
+  const base = filtered({ ignoreStage: true }).filter((j) => !(hideClosed && CLOSED.includes(j.status)));
+  const count = (stage) => base.filter((j) => stageMatches(j, stage)).length;
+  const opts = [...(state.choices.appStatus || []).map((o) => [o, trimmed(o)]), [NO_STAGE, 'No stage yet']];
+  sel.replaceChildren(
+    h('option', { value: '' }, 'All application stages'),
+    ...opts.map(([value, label]) => h('option', { value }, `${label} (${count(value)})`)),
+  );
+  sel.value = opts.some(([v]) => v === state.stage) ? state.stage : '';
+  sel.classList.toggle('active', Boolean(state.stage));
+}
+
+function setStageFilter(s) {
+  state.stage = s;
+  render();
+}
+
+const stageLabel = () => (state.stage === NO_STAGE ? 'No stage yet' : trimmed(state.stage));
 
 const byScore = (a, b) => (b.score ?? -1) - (a.score ?? -1) || String(a.company).localeCompare(String(b.company));
 
@@ -221,6 +249,7 @@ function render() {
   $('#app').dataset.view = state.view;
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === state.view)));
   renderStats();
+  renderStageOptions();
   if (state.view === 'pipeline') {
     $('#board').hidden = false;
     $('#table-wrap').hidden = true;
@@ -262,6 +291,16 @@ function setStatusFilter(s) {
   state.status = s;
   $('#f-status').value = s;
   render();
+}
+
+// "· Applied · Second Stage · Clear" — what's narrowing the view, with one click to undo it.
+function activeFilterNote() {
+  const parts = [state.status, state.stage && stageLabel()].filter(Boolean);
+  if (!parts.length) return [];
+  return [` · ${parts.join(' · ')} · `, h('button', {
+    type: 'button', class: 'linkish',
+    onclick: () => { state.stage = ''; setStatusFilter(''); },
+  }, 'Show all')];
 }
 
 function scoreBadge(score) {
@@ -311,8 +350,7 @@ function renderBoard() {
     const s = j.status || 'New';
     if (groups[s]) groups[s].push(j); else hidden++;
   }
-  $('#count').replaceChildren(`${list.length - hidden} shown` + (hidden ? ` · ${hidden} closed hidden` : ''),
-    ...(state.status ? [` · ${state.status} only · `, h('button', { type: 'button', class: 'linkish', onclick: () => setStatusFilter('') }, 'Show all')] : []));
+  $('#count').replaceChildren(`${list.length - hidden} shown` + (hidden ? ` · ${hidden} closed hidden` : ''), ...activeFilterNote());
 
   $('#board').replaceChildren(...columns.map((status) => {
     const jobs = groups[status].sort(byScore);
@@ -347,7 +385,7 @@ function renderTable() {
     if (vb == null) return -1;
     return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
   });
-  $('#count').textContent = `${list.length} shown`;
+  $('#count').replaceChildren(`${list.length} shown`, ...activeFilterNote());
 
   const th = (label, k, cls) => {
     const active = state.sort.key === k;
@@ -814,6 +852,7 @@ $('#q').addEventListener('input', (e) => { clearTimeout(qTimer); qTimer = setTim
 $('#f-segment').addEventListener('change', (e) => { state.segment = e.target.value; render(); });
 $('#f-location').addEventListener('change', (e) => { state.location = e.target.value; render(); });
 $('#f-status').addEventListener('change', (e) => setStatusFilter(e.target.value));
+$('#f-stage').addEventListener('change', (e) => setStageFilter(e.target.value));
 $('#f-closed').addEventListener('change', (e) => { state.showClosed = e.target.checked; render(); });
 
 // ---------------- Boot ----------------
