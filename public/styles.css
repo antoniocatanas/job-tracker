@@ -377,3 +377,38 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
 
 /* Theme button */
 .theme-btn svg { display: block; }
+
+/* Google Calendar */
+.cal-ico { font-size: 11px; line-height: 1; }
+.chip.cal { background: var(--accent-soft); color: var(--accent); }
+.chip.cal.soon { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.upcoming {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  margin: 12px 24px 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.up-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-right: 4px; }
+.up-item { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--card); overflow: hidden; }
+.up-open { display: inline-flex; gap: 8px; align-items: baseline; border: 0; background: none; font: inherit; color: var(--ink); padding: 6px 10px; cursor: pointer; text-align: left; flex: 1; }
+.up-open:hover { background: var(--accent-soft); }
+.up-when { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+.up-company { font-weight: 600; font-size: 13.5px; }
+.up-join { font-size: 12.5px; font-weight: 600; color: var(--accent); padding: 6px 10px; border-left: 1px solid var(--line); text-decoration: none; }
+.up-join:hover { background: var(--accent-soft); }
+.cal-panel { padding: 14px 28px; border-bottom: 1px solid var(--line); }
+.cal-head { font-weight: 600; margin-bottom: 6px; }
+.cal-empty { margin: 0; font-size: 13.5px; }
+.cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cal-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+.cal-row.past { opacity: .7; }
+.cal-when { font-family: var(--mono); font-size: 12.5px; color: var(--accent); grid-column: 1; }
+.cal-title { font-weight: 500; grid-column: 1; }
+.cal-loc { font-size: 12.5px; grid-column: 1; }
+.cal-join { grid-column: 2; grid-row: 1 / span 3; white-space: nowrap; }
+.cal-past { margin-top: 8px; }
+.cal-past summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .upcoming { margin: 10px 16px 0; }
+  .up-item { width: 100%; }
+  .up-join { white-space: nowrap; }
+  .cal-panel { padding: 12px 18px; }
+}

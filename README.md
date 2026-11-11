@@ -7,6 +7,7 @@ A private web app on top of the **Job Search Tracker** Airtable base (`appfZkhr2
 - **Ranked**: every active job sorted by Score, with sortable columns and filters.
 - **Filters stack**: search, segment, location, status and application stage all combine. Pick a status (click a tile on the Pipeline, or the dropdown on Ranked), then narrow it by application stage. The stage dropdown shows how many jobs are in each stage under the other filters, and "Show all" clears status and stage together.
 - **Generate CV & cover letter**: a tickbox in the job panel. Ticking it starts the "Draft CV & cover letter" Claude task, which writes both as Google Docs in the job's folder under Drive → Applications, sets the Drive folder link and marks the job Drafted. The app shows progress live and a Docs log tab with links.
+- **Google Calendar**: interviews from your calendar appear on the matching job (a 📅 chip on the card and in the Ranked table, a Google Calendar section in the job panel with a Join link) and in an "Upcoming interviews" strip under the stats. Read-only. See *Connect Google Calendar* below.
 - **Job panel**: Brief, Competitors (positioning plus at least two competitors with pros and cons, written by the Claude tasks), Job description, Interview prep (Assets) and editable Notes, plus Status, Application Status and Alive/Dead controls and links to the posting, Drive folder and meeting prep.
 
 No framework and no npm dependencies: static files in `public/`, serverless functions in `api/`.
@@ -64,6 +65,21 @@ If your account offers an API trigger for scheduled tasks (task → **Edit** →
 - Add job: `CLAUDE_AUTOFILL_FIRE_URL` and `CLAUDE_AUTOFILL_TOKEN`
 
 When those are set, the app fires the task right away; when they're missing, it falls back to the hourly queue. The hourly run still catches anything the instant trigger missed.
+
+## Connect Google Calendar
+
+The app reads your calendar through Google's private iCal link, so there's no Google Cloud project or sign-in to set up.
+
+1. Open Google Calendar on a computer → ⚙️ **Settings** → under *Settings for my calendars* click your calendar → **Integrate calendar**.
+2. Copy **Secret address in iCal format** (ends in `basic.ics`).
+3. In Vercel → Project → **Settings → Environment Variables**, add `GOOGLE_CALENDAR_ICS_URL` with that link. For more than one calendar, paste the links separated by a space.
+4. **Redeploy** (Deployments → ⋯ → Redeploy).
+
+How matching works: any event in the last 30 days or next 4 months whose title, location or description mentions a company in the tracker is linked to that job (whole words only, so "Exa" won't match "Exam"; "Inc", "Ltd" and the like are ignored). If you have several roles at one company, the event goes to the one marked Interviewing, then Applied. Cancelled events are skipped. Only matched events are sent to the browser; the rest of your calendar stays on the server. Changes in Google can take a few hours to show up in the secret link, and the app caches it for 5 minutes.
+
+Tip: put the company name in the event title (e.g. "Clay – second stage") and it will always match.
+
+Recurring events show their first occurrence only. If the link ever leaks, reset it in the same Google settings page and update the variable in Vercel.
 
 ## Run it locally
 

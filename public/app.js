@@ -37,6 +37,7 @@ const state = {
   lastFocus: null,
   generating: null, // job id while the generate request is in flight
   retrying: null, // job id while an auto-complete retry is in flight
+  calendar: { configured: false, events: [], byJob: new Map(), error: null },
 };
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -159,6 +160,95 @@ async function load() {
   fillFilterOptions();
   render();
   schedulePoll();
+  loadCalendar(); // not awaited: the board shouldn't wait on Google
+}
+
+// ---------------- Google Calendar ----------------
+async function loadCalendar() {
+  try {
+    const data = await api('/api/calendar');
+    const byJob = new Map();
+    for (const ev of data.events || []) for (const id of ev.jobIds) {
+      if (!byJob.has(id)) byJob.set(id, []);
+      byJob.get(id).push(ev);
+    }
+    state.calendar = { configured: !!data.configured, events: data.events || [], byJob, error: null };
+  } catch (ex) {
+    if (ex.message === 'Signed out') return;
+    state.calendar = { ...state.calendar, error: ex.message };
+  }
+  render();
+  if (state.openId) renderDrawer();
+}
+
+// An event counts as upcoming until it ends (all-day events until the end of that day).
+function eventEnd(ev) {
+  if (ev.allDay) { const d = new Date(ev.start + 'T00:00:00'); d.setDate(d.getDate() + 1); return d; }
+  return new Date(ev.end || ev.start);
+}
+const isUpcoming = (ev) => eventEnd(ev) > new Date();
+const nextEventFor = (id) => (state.calendar.byJob.get(id) || []).find(isUpcoming) || null;
+
+function eventWhen(ev, { short = false } = {}) {
+  const start = new Date(ev.allDay ? ev.start + 'T00:00:00' : ev.start);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const that = new Date(start); that.setHours(0, 0, 0, 0);
+  const diff = Math.round((that - today) / 86400e3);
+  const dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff === -1 ? 'Yesterday'
+    : start.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', ...(short ? {} : { year: start.getFullYear() !== today.getFullYear() ? 'numeric' : undefined }) });
+  if (ev.allDay) return `${dayLabel} · all day`;
+  const time = start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (short) return `${dayLabel} ${time}`;
+  const end = ev.end ? new Date(ev.end).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : null;
+  return `${dayLabel} · ${time}${end ? `–${end}` : ''}`;
+}
+
+const CAL_ICON = () => h('span', { 'aria-hidden': 'true', class: 'cal-ico' }, '📅');
+
+function calChip(job) {
+  const ev = nextEventFor(job.id);
+  if (!ev) return null;
+  const soon = new Date(ev.allDay ? ev.start + 'T00:00:00' : ev.start) - Date.now() < 2 * 86400e3;
+  return h('span', { class: 'chip cal' + (soon ? ' soon' : ''), title: ev.title }, CAL_ICON(), ' ', eventWhen(ev, { short: true }));
+}
+
+function renderUpcoming() {
+  const el = $('#upcoming');
+  const { configured, events, error } = state.calendar;
+  const jobById = new Map(state.jobs.map((j) => [j.id, j]));
+  const next = events.filter(isUpcoming).slice(0, 6);
+  if (!configured || (!next.length && !error)) { el.hidden = true; return; }
+  el.hidden = false;
+  el.replaceChildren(...[
+    h('div', { class: 'up-title' }, CAL_ICON(), ' Upcoming interviews'),
+    error ? h('span', { class: 'error' }, `Couldn't read Google Calendar: ${error}`) : null,
+    ...next.map((ev) => {
+      const job = jobById.get(ev.jobIds[0]) || {};
+      return h('div', { class: 'up-item' },
+        h('button', { type: 'button', class: 'up-open', title: ev.title, onclick: () => openDrawer(job.id) },
+          h('span', { class: 'up-when' }, eventWhen(ev, { short: true })),
+          h('span', { class: 'up-company' }, job.company || ev.title)),
+        safeUrl(ev.meetUrl) ? h('a', { class: 'up-join', href: safeUrl(ev.meetUrl), target: '_blank', rel: 'noopener noreferrer' }, 'Join ↗') : null);
+    })].filter(Boolean));
+}
+
+function calendarPanel(job) {
+  const { configured, error } = state.calendar;
+  if (!configured) return null;
+  const evs = state.calendar.byJob.get(job.id) || [];
+  const upcoming = evs.filter(isUpcoming);
+  const past = evs.filter((e) => !isUpcoming(e)).reverse();
+  const row = (ev, isPast) => h('li', { class: 'cal-row' + (isPast ? ' past' : '') },
+    h('div', { class: 'cal-when' }, eventWhen(ev)),
+    h('div', { class: 'cal-title' }, ev.title),
+    ev.location && !safeUrl(ev.location) ? h('div', { class: 'muted cal-loc' }, ev.location) : null,
+    !isPast && safeUrl(ev.meetUrl) ? h('a', { class: 'btn cal-join', href: safeUrl(ev.meetUrl), target: '_blank', rel: 'noopener noreferrer' }, 'Join call ↗') : null);
+  return h('section', { class: 'cal-panel', 'aria-label': 'Google Calendar' },
+    h('div', { class: 'cal-head' }, CAL_ICON(), ' Google Calendar'),
+    error ? h('p', { class: 'error' }, `Couldn't read Google Calendar: ${error}`) : null,
+    !evs.length && !error ? h('p', { class: 'muted cal-empty' }, `No events mentioning "${job.company || 'this company'}" in the last 30 days or next 4 months.`) : null,
+    upcoming.length ? h('ul', { class: 'cal-list' }, upcoming.map((e) => row(e, false))) : null,
+    past.length ? h('details', { class: 'cal-past' }, h('summary', {}, `${past.length} past`), h('ul', { class: 'cal-list' }, past.map((e) => row(e, true)))) : null);
 }
 
 async function start() {
@@ -249,6 +339,7 @@ function render() {
   $('#app').dataset.view = state.view;
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === state.view)));
   renderStats();
+  renderUpcoming();
   renderStageOptions();
   if (state.view === 'pipeline') {
     $('#board').hidden = false;
@@ -327,6 +418,7 @@ function card(job) {
   h('div', { class: 'card-top' }, h('div', { class: 'card-company' }, job.company || 'Untitled'), scoreBadge(job.score)),
   job.role ? h('div', { class: 'card-role' }, job.role) : null,
   h('div', { class: 'card-meta' },
+    calChip(job),
     FILL_LABEL[job.autofillStatus] ? h('span', { class: `chip fill-${job.autofillStatus.toLowerCase()}` },
       filling ? h('span', { class: 'spinner', 'aria-hidden': 'true', style: 'width:10px;height:10px;display:inline-block;vertical-align:-1px;margin-right:5px' }) : null,
       FILL_LABEL[job.autofillStatus]) : null,
@@ -417,7 +509,8 @@ function renderTable() {
       h('td', { class: 'hide-col' }, j.location || '–'),
       h('td', { class: 'hide-col', title: j.ote || '' }, shortOte(j.ote) || h('span', { class: 'muted' }, 'Not listed')),
       h('td', {}, h('span', { class: 'status-pill' }, h('span', { class: 'dot', style: `background:${STATUS_COLOR[j.status || '']}` }), j.status || '–'),
-        j.appStatus ? h('div', { class: 'muted', style: 'font-size:12.5px' }, trimmed(j.appStatus)) : null),
+        j.appStatus ? h('div', { class: 'muted', style: 'font-size:12.5px' }, trimmed(j.appStatus)) : null,
+        calChip(j)),
       h('td', { class: 'hide-col mono', style: 'white-space:nowrap' }, j.dateFound || '–'),
     )))));
 }
@@ -627,7 +720,7 @@ function renderDrawer() {
       : h('p', { class: 'empty-note' }, 'Nothing here yet.'));
   }
 
-  $('#drawer-body').replaceChildren(...[head, fillBanner(job), controls, docsPanel(job), tabs, panel].filter(Boolean));
+  $('#drawer-body').replaceChildren(...[head, fillBanner(job), controls, calendarPanel(job), docsPanel(job), tabs, panel].filter(Boolean));
 }
 
 // ---------------- CV & cover letter generation ----------------
