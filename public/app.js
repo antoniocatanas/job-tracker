@@ -417,6 +417,7 @@ function card(job) {
   },
   h('div', { class: 'card-top' }, h('div', { class: 'card-company' }, job.company || 'Untitled'), scoreBadge(job.score)),
   job.role ? h('div', { class: 'card-role' }, job.role) : null,
+  reasonLine(job),
   h('div', { class: 'card-meta' },
     calChip(job),
     FILL_LABEL[job.autofillStatus] ? h('span', { class: `chip fill-${job.autofillStatus.toLowerCase()}` },
@@ -460,7 +461,7 @@ function renderBoard() {
       col.classList.remove('drop-target');
       const id = e.dataTransfer.getData('text/plain');
       const job = state.jobs.find((j) => j.id === id);
-      if (job && (job.status || 'New') !== status) saveField(id, 'status', status);
+      if (job && (job.status || 'New') !== status) changeStatus(id, status);
     });
     return col;
   }));
@@ -517,23 +518,34 @@ function renderTable() {
 
 // ---------------- Saving ----------------
 async function saveField(id, key, value) {
+  return saveFields(id, { [key]: value });
+}
+
+async function saveFields(id, patch) {
+  const keys = Object.keys(patch);
+  const key = keys[0];
+  const value = patch[key];
   const job = state.jobs.find((j) => j.id === id);
-  const prev = job ? job[key] : undefined;
-  if (job) job[key] = value; // optimistic
   const detail = state.details.get(id);
-  if (detail) detail[key] = value;
+  const prevJob = job ? Object.fromEntries(keys.map((k) => [k, job[k]])) : null;
+  const prevDetail = detail ? Object.fromEntries(keys.map((k) => [k, detail[k]])) : null;
+  if (job) Object.assign(job, patch); // optimistic
+  if (detail) Object.assign(detail, patch);
   render();
+  if (state.openId === id) renderDrawer();
   try {
-    const { job: saved } = await api(`/api/jobs/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ [key]: value }) });
+    const { job: saved } = await api(`/api/jobs/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
     if (job) for (const k of Object.keys(job)) if (k in saved) job[k] = saved[k];
     state.details.set(id, saved);
     render();
     if (state.openId === id) renderDrawer();
-    toast(key === 'notes' ? 'Notes saved' : `${saved.company || 'Job'} → ${trimmed(value) || 'cleared'}`);
+    toast(key === 'notes' ? 'Notes saved'
+      : REASON_KEYS.includes(key) ? 'Reason saved'
+        : `${saved.company || 'Job'} → ${trimmed(value) || 'cleared'}${keys.some((k) => REASON_KEYS.includes(k) && patch[k]) ? ' (reason saved)' : ''}`);
     return true;
   } catch (ex) {
-    if (job) job[key] = prev;
-    if (detail) detail[key] = prev;
+    if (job) Object.assign(job, prevJob);
+    if (detail) Object.assign(detail, prevDetail);
     render();
     if (state.openId === id) renderDrawer();
     if (ex.message !== 'Signed out') toast(`Couldn't save: ${ex.message}`, true);
@@ -638,7 +650,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.op
 function selectControl(label, key, value) {
   const opts = state.choices[key] || [];
   const sel = h('select', {
-    onchange: (e) => saveField(state.openId, key, e.target.value || null),
+    onchange: (e) => (key === 'status' ? changeStatus(state.openId, e.target.value || null) : saveField(state.openId, key, e.target.value || null)),
   }, h('option', { value: '' }, '—'), opts.map((o) => h('option', { value: o }, trimmed(o))));
   sel.value = opts.includes(value) ? value : '';
   return h('label', {}, label, sel);
@@ -720,7 +732,7 @@ function renderDrawer() {
       : h('p', { class: 'empty-note' }, 'Nothing here yet.'));
   }
 
-  $('#drawer-body').replaceChildren(...[head, fillBanner(job), controls, calendarPanel(job), docsPanel(job), tabs, panel].filter(Boolean));
+  $('#drawer-body').replaceChildren(...[head, fillBanner(job), controls, reasonPanel(job), calendarPanel(job), docsPanel(job), tabs, panel].filter(Boolean));
 }
 
 // ---------------- CV & cover letter generation ----------------
@@ -959,3 +971,94 @@ try { state.view = localStorage.getItem('jt-view') === 'ranked' ? 'ranked' : 'pi
     showLogin();
   }
 })();
+
+
+// ---------------- Skip / rejection reasons ----------------
+// Moving a job to Skipped or Rejected (drawer dropdown or drag on the board) asks why.
+// The reason goes to "Skip reason" / "Rejection reason" in Airtable, in the same save as the status.
+const REASON_FOR = {
+  Skipped: {
+    key: 'skipReason', title: 'Why are you skipping this one?', label: 'Skip reason',
+    ideas: ['OTE too low', 'Wrong segment', 'Location / relocation', 'Not my experience', 'Company not compelling', 'Role too junior'],
+  },
+  Rejected: {
+    key: 'rejectReason', title: 'What happened?', label: 'Rejection reason',
+    ideas: ['No response', 'After application', 'After screening', 'After second stage', 'After final stage', 'Role filled / paused'],
+  },
+};
+const REASON_KEYS = Object.values(REASON_FOR).map((r) => r.key);
+
+const reasonDialog = h('dialog', { class: 'add-dialog reason-dialog', 'aria-labelledby': 'reason-title' });
+document.body.append(reasonDialog);
+
+// Resolves with the reason text ('' if left empty), or null if cancelled.
+function askReason(job, status) {
+  const cfg = REASON_FOR[status];
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; resolve(v); if (reasonDialog.open) reasonDialog.close(); };
+    const ta = h('textarea', { id: 'reason-text', rows: 4, maxlength: 2000, placeholder: 'A line or two is plenty' });
+    ta.value = trimmed(job[cfg.key]);
+    const addIdea = (idea) => {
+      const cur = ta.value.trim();
+      if (cur.toLowerCase().includes(idea.toLowerCase())) return;
+      ta.value = cur ? `${cur}; ${idea}` : idea;
+      ta.focus();
+    };
+    const form = h('form', { method: 'dialog', onsubmit: (e) => { e.preventDefault(); finish(ta.value.trim()); } },
+      h('h2', { id: 'reason-title' }, cfg.title),
+      h('p', { class: 'muted' }, `${job.company || 'This job'}${job.role ? ` – ${job.role}` : ''} → ${status}`),
+      h('div', { class: 'reason-ideas' }, cfg.ideas.map((idea) => h('button', { type: 'button', class: 'chip reason-idea', onclick: () => addIdea(idea) }, '+ ', idea))),
+      h('label', { class: 'field' }, h('span', {}, cfg.label), ta),
+      h('div', { class: 'add-actions' },
+        h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => finish(null) }, 'Cancel'),
+        h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => finish('') }, 'No reason'),
+        h('button', { type: 'submit', class: 'btn btn-primary' }, `Save as ${status}`)));
+    ta.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') form.requestSubmit(); });
+    reasonDialog.onclose = () => finish(null); // Esc
+    reasonDialog.replaceChildren(form);
+    reasonDialog.showModal();
+    ta.focus();
+  });
+}
+
+async function changeStatus(id, status) {
+  const job = state.jobs.find((j) => j.id === id);
+  const cfg = REASON_FOR[status];
+  if (!job || !cfg) return saveField(id, 'status', status);
+  const reason = await askReason({ ...job, ...(state.details.get(id) || {}) }, status);
+  if (reason === null) { // cancelled: put the dropdown back
+    render();
+    if (state.openId === id) renderDrawer();
+    return false;
+  }
+  return saveFields(id, reason ? { status, [cfg.key]: reason } : { status });
+}
+
+async function editReason(id, status) {
+  const job = { ...state.jobs.find((j) => j.id === id), ...(state.details.get(id) || {}) };
+  const cfg = REASON_FOR[status];
+  const reason = await askReason(job, status);
+  if (reason === null || reason === trimmed(job[cfg.key])) return;
+  saveFields(id, { [cfg.key]: reason || null });
+}
+
+function reasonPanel(job) {
+  const cfg = REASON_FOR[job.status];
+  // Show the reason for the current status, plus any older one (e.g. skipped before, now rejected).
+  const rows = Object.entries(REASON_FOR)
+    .filter(([status, r]) => status === job.status || trimmed(job[r.key]))
+    .map(([status, r]) => h('div', { class: 'reason-row' },
+      h('div', { class: 'reason-label' }, r.label),
+      trimmed(job[r.key]) ? h('div', { class: 'reason-text' }, trimmed(job[r.key])) : h('div', { class: 'muted reason-text' }, 'No reason added'),
+      h('button', { type: 'button', class: 'btn btn-ghost reason-edit', onclick: () => editReason(job.id, status) }, trimmed(job[r.key]) ? 'Edit' : 'Add')));
+  if (!rows.length && !cfg) return null;
+  return h('section', { class: 'reason-panel', 'aria-label': 'Reasons' }, rows);
+}
+
+function reasonLine(job) {
+  const cfg = REASON_FOR[job.status];
+  const text = cfg && trimmed(job[cfg.key]);
+  if (!text) return null;
+  return h('div', { class: 'card-reason', title: text }, text.length > 90 ? text.slice(0, 89) + '…' : text);
+}

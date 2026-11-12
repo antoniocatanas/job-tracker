@@ -3,7 +3,7 @@ import { requireAuth } from '../../lib/auth.js';
 import { getJob, updateJob } from '../../lib/airtable.js';
 
 // GET   /api/jobs/:id → one job with every field (brief, JD, notes, prep)
-// PATCH /api/jobs/:id → update Status, Application Status, Select or Notes
+// PATCH /api/jobs/:id → update Status, Application Status, Select, Notes, Skip reason or Rejection reason
 export default async function handler(req, res) {
   try {
     if (!requireAuth(req, res)) return;

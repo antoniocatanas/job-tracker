@@ -7,6 +7,7 @@ A private web app on top of the **Job Search Tracker** Airtable base (`appfZkhr2
 - **Ranked**: every active job sorted by Score, with sortable columns and filters.
 - **Filters stack**: search, segment, location, status and application stage all combine. Pick a status (click a tile on the Pipeline, or the dropdown on Ranked), then narrow it by application stage. The stage dropdown shows how many jobs are in each stage under the other filters, and "Show all" clears status and stage together.
 - **Generate CV & cover letter**: a tickbox in the job panel. Ticking it starts the "Draft CV & cover letter" Claude task, which writes both as Google Docs in the job's folder under Drive → Applications, sets the Drive folder link and marks the job Drafted. The app shows progress live and a Docs log tab with links.
+- **Skip and rejection reasons**: moving a job to Skipped or Rejected (from the job panel or by dragging the card) asks why, with one-click suggestions. The reason is saved to **Skip reason** or **Rejection reason** in Airtable in the same save as the status, shows under the card in that column and in the job panel, where you can edit it. Cancel (or Esc) leaves the status unchanged; "No reason" changes the status without one.
 - **Google Calendar**: interviews from your calendar appear on the matching job (a 📅 chip on the card and in the Ranked table, a Google Calendar section in the job panel with a Join link) and in an "Upcoming interviews" strip under the stats. Read-only. See *Connect Google Calendar* below.
 - **Job panel**: Brief, Competitors (positioning plus at least two competitors with pros and cons, written by the Claude tasks), Job description, Interview prep (Assets) and editable Notes, plus Status, Application Status and Alive/Dead controls and links to the posting, Drive folder and meeting prep.
 
@@ -16,7 +17,7 @@ No framework and no npm dependencies: static files in `public/`, serverless func
 
 - The Airtable token lives only in Vercel's environment variables. The browser only ever talks to `/api/*`.
 - A password unlocks the app and sets a signed, HttpOnly cookie (30 days).
-- The API can only edit **Status, Application Status, Select and Notes**, and select values must match the base's options. Nothing can be deleted.
+- The API can only edit **Status, Application Status, Select, Notes, Skip reason and Rejection reason**, and select values must match the base's options. Nothing can be deleted.
 - Pages are `noindex` and can't be framed.
 
 ## Deploy to Vercel (about 10 minutes)
