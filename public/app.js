@@ -14,9 +14,10 @@ const STATUS_COLOR = {
   New: '#2d7ff9', Shortlisted: '#18bfff', Drafted: '#20d9d2', Applied: '#20c933', Interviewing: '#20c933',
   Rejected: '#f82b60', Skipped: '#8b8b8b', 'JD unavailable': '#ff6f2c', '': '#8b8b8b',
 };
-const DETAIL_TABS = [
-  ['brief', 'Brief'], ['competitors', 'Competitors'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
+const ALL_DETAIL_TABS = [
+  ['brief', 'Brief'], ['competitors', 'Competitors'], ['jd', 'Job description'], ['assets', 'Interview prep'], ['diligence', 'Due diligence'], ['notes', 'Notes'], ['docsLog', 'Docs log'],
 ];
+const detailTabs = () => ALL_DETAIL_TABS.filter(([k]) => k !== 'diligence' || state.features.diligence);
 const DOCS_BUSY = ['Requested', 'Drafting'];
 const DOCS_LABEL = { Requested: 'Docs queued', Drafting: 'Drafting docs…', Ready: 'Docs ready', Failed: 'Docs failed' };
 const FILL_BUSY = ['Requested', 'Researching'];
@@ -34,6 +35,8 @@ const state = {
   tab: 'brief',
   recordUrlPrefix: null,
   notesDraft: null, // { id, value } — survives re-renders until saved
+  features: {},
+  diligenceDraft: null, // { id, sections } — unsaved due diligence notes
   lastFocus: null,
   generating: null, // job id while the generate request is in flight
   retrying: null, // job id while an auto-complete retry is in flight
@@ -156,6 +159,7 @@ async function load() {
   const data = await api('/api/jobs');
   state.jobs = data.jobs;
   state.choices = data.choices;
+  state.features = data.features || {};
   state.recordUrlPrefix = data.recordUrlPrefix || null;
   fillFilterOptions();
   render();
@@ -686,8 +690,10 @@ function renderDrawer() {
     selectControl('Application', 'appStatus', job.appStatus),
     selectControl('Alive / Dead', 'select', job.select));
 
-  const tabs = h('div', { class: 'd-tabs', role: 'tablist' }, DETAIL_TABS.map(([key, label]) => {
-    const empty = detail && !trimmed(detail[key]) && key !== 'notes';
+  if (!detailTabs().some(([k]) => k === state.tab)) state.tab = 'brief';
+  const tabs = h('div', { class: 'd-tabs', role: 'tablist' }, detailTabs().map(([key, label]) => {
+    const empty = detail && !trimmed(detail[key]) && key !== 'notes' && key !== 'diligence';
+    if (key === 'diligence' && detail) label = [label, h('span', { class: 'dd-count' }, `${diligenceCount(detail.diligence)}/5`)];
     return h('button', {
       role: 'tab', 'aria-selected': String(state.tab === key),
       onclick: () => { state.tab = key; renderDrawer(); },
@@ -697,6 +703,8 @@ function renderDrawer() {
   let panel;
   if (!detail) {
     panel = h('div', { class: 'd-panel' }, [80, 95, 60, 90, 70].map((w) => h('div', { class: 'skeleton', style: `width:${w}%` })));
+  } else if (state.tab === 'diligence') {
+    panel = diligencePanel(id, detail);
   } else if (state.tab === 'notes') {
     const ta = h('textarea', { 'aria-label': 'Notes' });
     const draft = state.notesDraft?.id === id ? state.notesDraft.value : null;
@@ -1061,4 +1069,108 @@ function reasonLine(job) {
   const text = cfg && trimmed(job[cfg.key]);
   if (!text) return null;
   return h('div', { class: 'card-reason', title: text }, text.length > 90 ? text.slice(0, 89) + '…' : text);
+}
+
+// ---------------- Due diligence ----------------
+// Five checks to run on a company before accepting an offer. All five live in one Airtable
+// long-text field, as "### 1. Title" sections, so they stay readable in Airtable too.
+const DILIGENCE = [
+  {
+    title: 'Quota attainment',
+    hint: 'Do reps actually earn the OTE? Check RepVue, Bravado and Glassdoor AE reviews. Healthy: 60%+ of ramped AEs at quota. Under 30–40% means a broken quota or a struggling product.',
+    ask: 'What % of the London AE team hit their number last quarter, and what did the median rep actually earn?',
+  },
+  {
+    title: 'Lead flow & pipeline',
+    hint: 'Where closed-won comes from. Red flags: "lots of inbound" right after marketing cuts, or 100% cold outbound with no SDRs and little brand.',
+    ask: "What share of a ramped AE's closed-won comes from inbound, SDR-sourced meetings and self-sourced outbound?",
+  },
+  {
+    title: 'AE tenure',
+    hint: 'LinkedIn → company → People → current and past AEs. Good: several AEs at 18+ months, some promoted. Bad: most leave within 7–11 months. Message 1–2 former London AEs for a candid take.',
+    ask: null,
+  },
+  {
+    title: 'Product-market fit & retention',
+    hint: 'G2 / Gartner Peer Insights reviews from the last 6–12 months, especially "What do you dislike?". NDR of 105–120%+ is healthy; under 95% is leaky.',
+    ask: 'What is your net dollar retention, and how has it moved this year?',
+  },
+  {
+    title: 'Comp plan & ramp',
+    hint: 'Get the plan in writing. Look for a 3–6 month ramp (draw or reduced quota) that fits the sales cycle, uncapped commission with accelerators from 100%, and no harsh clawbacks on churn.',
+    ask: 'Can I see the commission plan document, including ramp, accelerators and clawbacks?',
+  },
+];
+
+// "### 1. Quota attainment\n…" → ['…', '', …] plus any text outside the sections (kept, shown as Other).
+function parseDiligence(text) {
+  const sections = DILIGENCE.map(() => '');
+  let other = '';
+  const src = String(text || '').replace(/\r\n/g, '\n');
+  const re = /^###\s*(\d)\.[^\n]*\n?/gm;
+  const marks = [...src.matchAll(re)];
+  other = (marks.length ? src.slice(0, marks[0].index) : src).trim();
+  marks.forEach((m, i) => {
+    const body = src.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : src.length).trim();
+    const n = Number(m[1]) - 1;
+    if (n >= 0 && n < DILIGENCE.length) sections[n] = sections[n] ? `${sections[n]}\n${body}` : body;
+    else other = [other, body].filter(Boolean).join('\n');
+  });
+  return { sections, other };
+}
+
+function serializeDiligence({ sections, other }) {
+  const parts = sections.map((body, i) => (body.trim() ? `### ${i + 1}. ${DILIGENCE[i].title}\n${body.trim()}` : null)).filter(Boolean);
+  if (other.trim()) parts.unshift(other.trim());
+  return parts.join('\n\n');
+}
+
+const diligenceCount = (text) => parseDiligence(text).sections.filter((s) => s.trim()).length;
+
+function diligencePanel(id, detail) {
+  const saved = parseDiligence(detail.diligence);
+  const draft = state.diligenceDraft?.id === id ? state.diligenceDraft.value : null;
+  const current = draft || { sections: [...saved.sections], other: saved.other };
+  const status = h('span', { class: 'muted' }, '');
+  const save = h('button', { class: 'btn btn-primary', disabled: true }, 'Save');
+  const savedText = serializeDiligence(saved);
+
+  const sync = () => {
+    const dirty = serializeDiligence(current) !== savedText;
+    save.disabled = !dirty;
+    status.textContent = dirty ? 'Unsaved changes' : '';
+    state.diligenceDraft = dirty ? { id, value: current } : null;
+  };
+
+  const box = (value, onInput, label, rows) => {
+    const ta = h('textarea', { 'aria-label': label, rows, placeholder: 'Your findings…' });
+    ta.value = value;
+    ta.addEventListener('input', () => { onInput(ta.value); sync(); });
+    ta.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !save.disabled) save.click(); });
+    return ta;
+  };
+
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    const value = serializeDiligence(current);
+    const ok = await saveField(id, 'diligence', value || null);
+    if (ok) state.diligenceDraft = null;
+    else status.textContent = 'Not saved';
+  });
+
+  const items = DILIGENCE.map((d, i) => h('section', { class: 'dd-item' + (current.sections[i].trim() ? ' done' : '') },
+    h('div', { class: 'dd-head' }, h('span', { class: 'dd-num' }, i + 1), h('h3', {}, d.title)),
+    h('p', { class: 'dd-hint' }, d.hint),
+    d.ask ? h('p', { class: 'dd-ask' }, h('strong', {}, 'Ask: '), `"${d.ask}"`) : null,
+    box(current.sections[i], (v) => { current.sections[i] = v; }, d.title, 3)));
+
+  queueMicrotask(sync);
+  return h('div', { class: 'd-panel dd' },
+    h('p', { class: 'muted dd-intro' }, 'Check the company like an investor before you sign. Notes save to the "Due diligence" column in Airtable.'),
+    items,
+    current.other ? h('section', { class: 'dd-item' }, h('div', { class: 'dd-head' }, h('h3', {}, 'Other notes')),
+      box(current.other, (v) => { current.other = v; }, 'Other notes', 3)) : null,
+    h('div', { class: 'notes-actions dd-actions' }, save, status,
+      h('span', { class: 'muted', style: 'margin-left:auto' }, '⌘/Ctrl + Enter to save')));
 }

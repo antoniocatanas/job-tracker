@@ -429,3 +429,21 @@ td .t-role { color: var(--ink-2); font-size: 13px; }
 .reason-edit { grid-column: 2; grid-row: 1 / span 2; }
 .card-reason { font-size: 12.5px; color: var(--muted); font-style: italic; line-height: 1.35; }
 @media (max-width: 640px) { .reason-panel { padding-left: 16px; padding-right: 16px; } }
+
+/* Due diligence */
+.dd { display: grid; gap: 14px; }
+.dd-intro { margin: 0; font-size: 13.5px; }
+.dd-item { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); display: grid; gap: 6px; }
+.dd-item.done { border-color: var(--accent); }
+.dd-head { display: flex; align-items: center; gap: 8px; }
+.dd-head h3 { margin: 0; font-size: 15px; }
+.dd-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--chip); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.dd-item.done .dd-num { background: var(--accent); color: var(--accent-ink); }
+.dd-hint, .dd-ask { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.dd-ask { color: var(--ink-2); }
+.dd textarea { width: 100%; min-height: 72px; resize: vertical; line-height: 1.5; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; }
+.dd textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.dd-actions { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0; }
+.d-tabs { overflow-x: auto; scrollbar-width: thin; }
+.d-tabs button { white-space: nowrap; flex-shrink: 0; }
+.dd-count { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-left: 4px; }

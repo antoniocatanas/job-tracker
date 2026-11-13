@@ -2,7 +2,7 @@ import { send, readJson, isJsonRequest, handleError } from '../../lib/http.js';
 import { requireAuth } from '../../lib/auth.js';
 import { listJobs, validateNewJob, findDuplicate, createJob } from '../../lib/airtable.js';
 import { startAutofill } from '../../lib/autofill.js';
-import { CHOICES } from '../../lib/config.js';
+import { CHOICES, FEATURES } from '../../lib/config.js';
 
 // GET  /api/jobs → every job with the light fields, plus the select options.
 // POST /api/jobs { company, role, link } → adds a job by hand, then asks Claude to fill in the rest.
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
       const jobs = await listJobs();
       const { AIRTABLE_BASE_ID: base, AIRTABLE_TABLE_ID: table } = process.env;
       const recordUrlPrefix = base && table && process.env.MOCK !== '1' ? `https://airtable.com/${base}/${table}/` : null;
-      return send(res, 200, { jobs, choices: CHOICES, recordUrlPrefix, fetchedAt: new Date().toISOString() });
+      return send(res, 200, { jobs, choices: CHOICES, features: FEATURES, recordUrlPrefix, fetchedAt: new Date().toISOString() });
     }
 
     if (req.method === 'POST') {
